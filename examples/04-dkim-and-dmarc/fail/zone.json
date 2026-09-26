@@ -1,0 +1,54 @@
+{
+  "apex": {
+    "A": [
+      {
+        "value": "198.51.100.20",
+        "ttl": 300
+      }
+    ],
+    "NS": [
+      {
+        "value": "ns1.dnsprovider.example",
+        "ttl": 86400
+      },
+      {
+        "value": "ns2.dnsprovider.example",
+        "ttl": 86400
+      }
+    ],
+    "MX": [
+      {
+        "value": "mail.mailprovider.example",
+        "priority": 10,
+        "ttl": 3600
+      }
+    ],
+    "TXT": [
+      "v=spf1 include:_spf.mailprovider.example -all"
+    ],
+    "CAA": [
+      {
+        "flags": 0,
+        "tag": "issue",
+        "value": "letsencrypt.org"
+      }
+    ],
+    "SOA": {
+      "serial": 2026101301,
+      "minimum": 300
+    }
+  },
+  "www": {
+    "CNAME": [
+      {
+        "value": "example.org",
+        "ttl": 300
+      }
+    ]
+  },
+  "sel1._domainkey": {
+    "TXT": [
+      "v=DKIM1; k=rsa; t=y; p=MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBALmOdGyesQEL8nZGg4X05d5OCWL9Yj5/BhVGPPR98jJuWBdGeb6XBrocsC52d92n2i9XDEwSH4T+UCdJZQCguSECAwEAAQ=="
+    ]
+  }
+}
