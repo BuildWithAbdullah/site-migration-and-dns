@@ -1,0 +1,12 @@
+:root {
+  --ink: #1a1a1a;
+}
+
+body {
+  color: var(--ink);
+  background-image: url("/images/paper.png");
+}
+
+.hero {
+  background-image: url(https://cdn.assetprovider.example/hero.webp);
+}
