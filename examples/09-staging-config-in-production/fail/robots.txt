@@ -1,0 +1,3 @@
+# Carried over from staging.
+User-agent: *
+Disallow: /
