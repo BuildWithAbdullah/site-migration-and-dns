@@ -1,0 +1,26 @@
+{
+  "now": "2026-10-01T00:00:00Z",
+  "httpReachable": true,
+  "httpsReachable": true,
+  "certificate": {
+    "issuer": "letsencrypt.org",
+    "subjectAltNames": [
+      "example.org"
+    ],
+    "notBefore": "2026-09-01T00:00:00Z",
+    "notAfter": "2026-10-20T00:00:00Z"
+  },
+  "redirectChain": [
+    {
+      "from": "http://example.org/",
+      "to": "http://www.example.org/",
+      "status": 301
+    },
+    {
+      "from": "http://www.example.org/",
+      "to": "https://www.example.org/",
+      "status": 301
+    }
+  ],
+  "headers": {}
+}
