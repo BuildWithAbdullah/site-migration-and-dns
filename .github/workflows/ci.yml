@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18', '20', '22']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Test suite
+        run: npm test
+
+      - name: Repository verifier
+        run: npm run verify
+
+      - name: The baseline example has to be clean
+        run: npm run check:baseline
+
+      - name: A failing example has to fail
+        run: |
+          set +e
+          node -e "import('./tools/example.mjs').then(async m => {
+            const dir = m.materialise('06-serialized-search-and-replace', 'fail');
+            const { loadMigration, runChecks, exitCodeFor } = await import('./src/run.mjs');
+            const result = runChecks(loadMigration(dir), { now: '2026-10-01T00:00:00Z' });
+            if (exitCodeFor(result, 'high') !== 1) {
+              console.error('a failing example did not fail');
+              process.exit(1);
+            }
+            console.log('failing example raised ' + result.findings.length + ' findings, as it should');
+          })"
+
+      - name: Every source file parses as a module
+        run: |
+          for f in $(find src bin tools probe -name '*.mjs'); do
+            node --check "$f" || exit 1
+          done
