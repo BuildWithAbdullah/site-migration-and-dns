@@ -1,0 +1,11 @@
+body {
+  background-image: url("http://cdn.assetprovider.example/paper.png");
+}
+
+.hero {
+  background-image: url(//cdn.assetprovider.example/hero.webp);
+}
+
+.logo {
+  background-image: url("https://www.old-site.example/images/logo.svg");
+}
