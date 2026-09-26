@@ -1,0 +1,45 @@
+{
+  "apex": {
+    "A": [
+      {
+        "value": "198.51.100.20",
+        "ttl": 300
+      }
+    ],
+    "NS": [
+      {
+        "value": "ns1.dnsprovider.example",
+        "ttl": 86400
+      },
+      {
+        "value": "ns2.dnsprovider.example",
+        "ttl": 86400
+      }
+    ],
+    "TXT": [],
+    "CAA": [
+      {
+        "flags": 0,
+        "tag": "issue",
+        "value": "letsencrypt.org"
+      }
+    ],
+    "SOA": {
+      "serial": 2026101301,
+      "minimum": 300
+    }
+  },
+  "www": {
+    "CNAME": [
+      {
+        "value": "example.org",
+        "ttl": 300
+      }
+    ]
+  },
+  "_dmarc": {
+    "TXT": [
+      "v=DMARC1; p=quarantine; rua=mailto:dmarc@example.org; adkim=r; aspf=r"
+    ]
+  }
+}
