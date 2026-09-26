@@ -1,0 +1,21 @@
+{
+  "oldInventory": [
+    "/old-about",
+    "/blog/2020/post-one",
+    "/services/audit",
+    "/landing?utm_source=news",
+    "/team/retired-page"
+  ],
+  "newInventory": ["/", "/about", "/blog/post-one", "/services/", "/landing"],
+  "map": [
+    { "from": "/blog/2020/*", "to": "/blog/", "status": 301 },
+    { "from": "/blog/2020/post-one", "to": "/blog/post-one", "status": 301 },
+    { "from": "/old-about", "to": "/about-us", "status": 301 },
+    { "from": "/about-us", "to": "/about", "status": 301 },
+    { "from": "/services/audit", "to": "/services/", "status": 301 },
+    { "from": "/landing?utm_source=news", "to": "/landing", "status": 301 },
+    { "from": "/contact", "to": "http://www.example.org/contact", "status": 301 },
+    { "from": "/a", "to": "/b", "status": 301 },
+    { "from": "/b", "to": "/a", "status": 301 }
+  ]
+}
