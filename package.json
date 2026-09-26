@@ -1,0 +1,37 @@
+{
+  "name": "site-migration-and-dns",
+  "version": "1.0.0",
+  "description": "Pre-flight and post-flight verification for a website migration, as a runnable check rather than a checklist.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "bin": {
+    "migrate-check": "bin/migrate-check.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/catalog.mjs test/dns.mjs test/ttl.mjs test/email-spf.mjs test/email-keys.mjs test/ssl.mjs test/serialized.mjs test/redirects.mjs test/mixed.mjs test/indexing.mjs test/coverage.mjs test/examples.mjs test/run.mjs test/report.mjs test/cli.mjs",
+    "verify": "node tools/verify.mjs",
+    "check:baseline": "node bin/migrate-check.mjs examples/baseline --now 2026-10-01T00:00:00Z"
+  },
+  "keywords": [
+    "website-migration",
+    "dns",
+    "spf",
+    "dkim",
+    "dmarc",
+    "wordpress",
+    "redirects",
+    "mixed-content",
+    "seo"
+  ],
+  "files": [
+    "bin",
+    "src",
+    "probe",
+    "docs",
+    "LICENSE",
+    "README.md"
+  ]
+}
