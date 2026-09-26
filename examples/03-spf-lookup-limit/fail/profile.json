@@ -1,0 +1,55 @@
+{
+  "domain": "example.org",
+  "oldDomain": "old-site.example",
+  "phase": "pre",
+  "cutoverAt": "2026-10-15T02:00:00Z",
+  "ttlLoweredAt": "2026-10-13T02:00:00Z",
+  "ttlBeforeLowering": 3600,
+  "oldHost": {
+    "addresses": [
+      "203.0.113.10"
+    ],
+    "name": "web.old-host.example"
+  },
+  "newHost": {
+    "addresses": [
+      "198.51.100.20"
+    ],
+    "name": "web.newhost.example"
+  },
+  "intendedNameservers": [
+    "ns1.dnsprovider.example",
+    "ns2.dnsprovider.example"
+  ],
+  "certificateIssuer": "letsencrypt.org",
+  "canonicalHost": "www.example.org",
+  "stagingHosts": [
+    "staging.example.org"
+  ],
+  "subdomains": [
+    "www"
+  ],
+  "httpsSubdomains": [
+    "www"
+  ],
+  "mail": {
+    "movesWithSite": false,
+    "oldMailHosts": [
+      "mail.oldhost.example"
+    ],
+    "oldSendingHosts": [],
+    "newSendingHosts": [
+      "_spf.mailprovider.example"
+    ],
+    "dkimSelectors": [
+      "sel1"
+    ],
+    "includeLookupCosts": {
+      "_spf.mailprovider.example": 3,
+      "_spf.crm.example": 4,
+      "_spf.newsletter.example": 2,
+      "mail.helpdesk.example": 1
+    },
+    "alignedAuthentication": true
+  }
+}
