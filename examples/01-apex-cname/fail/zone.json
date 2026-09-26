@@ -1,0 +1,51 @@
+{
+  "apex": {
+    "NS": [
+      {
+        "value": "ns1.dnsprovider.example",
+        "ttl": 86400
+      },
+      {
+        "value": "ns2.dnsprovider.example",
+        "ttl": 86400
+      }
+    ],
+    "MX": [
+      {
+        "value": "mail.mailprovider.example",
+        "priority": 10,
+        "ttl": 3600
+      }
+    ],
+    "TXT": [
+      "v=spf1 include:_spf.mailprovider.example -all"
+    ],
+    "CAA": [
+      {
+        "flags": 0,
+        "tag": "issue",
+        "value": "letsencrypt.org"
+      }
+    ],
+    "SOA": {
+      "serial": 2026101301,
+      "minimum": 300
+    },
+    "CNAME": [
+      {
+        "value": "web.newhost.example",
+        "ttl": 3600
+      }
+    ]
+  },
+  "_dmarc": {
+    "TXT": [
+      "v=DMARC1; p=quarantine; rua=mailto:dmarc@example.org; adkim=r; aspf=r"
+    ]
+  },
+  "sel1._domainkey": {
+    "TXT": [
+      "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv9huYCsIM93SDQZQTBH/Dni1PJRiA74oTpYdQhsBac3qNI7BP+bWZCLUAkhVETQGksn4nlFS/85GbWg+DXBgzdGLU6dW3WHADRlq422ZPLR3RNOdrDBIaICmItLFdfBy0JRyDgE5fq026u7IAmi6RyBzC4LjOROtymFaVsJ9sdIJ+y7zIv6Yj4PJ3TE6OqbH/uGnnGWbMiU9nrVXDZHY2HDUEZajnQzkebH/JSMlxVa+1e8hcC39/Dh4YM/jCXiASsvl4sSE0jN8+5chmyFbdpH8O205IZ22VCxwDZaNMoUCmJ05zpabwuuqHPWQvSFWzqNMsu9DOvnGXsNp85kE1QIDAQAB"
+    ]
+  }
+}
