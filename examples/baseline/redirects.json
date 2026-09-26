@@ -1,0 +1,8 @@
+{
+  "oldInventory": ["/old-about", "/blog/2020/post-one"],
+  "newInventory": ["/", "/about", "/blog/post-one"],
+  "map": [
+    { "from": "/old-about", "to": "/about", "status": 301 },
+    { "from": "/blog/2020/post-one", "to": "/blog/post-one", "status": 301 }
+  ]
+}
