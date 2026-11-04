@@ -8,13 +8,22 @@
 // The split is the point. Everything that decides whether a migration is safe
 // is a pure function over the files this script writes, so the judgement is
 // tested and the collection is not.
+//
+// What belongs on the tested side of that line is wider than it looks, and used
+// to be smaller than it should have been. Parsing the command line and deciding
+// what a partial collection means are not network operations, so they live in
+// src/probe-plan.mjs where they are driven by tests. What is left below is the
+// lookups themselves and the two writeFileSync calls.
 
 import { promises as dns } from 'node:dns';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { connect } from 'node:tls';
 import { request } from 'node:https';
 import { request as httpRequest } from 'node:http';
+import { pathToFileURL } from 'node:url';
+
+import { parseProbeArgs, PROBE_USAGE, keepRealErrors, assembleObserved } from '../src/probe-plan.mjs';
 
 const resolver = new dns.Resolver({ timeout: 5000, tries: 2 });
 
@@ -115,10 +124,7 @@ async function collectZone(domain, selectors) {
     );
   }
 
-  // A record type that does not exist is not an error worth keeping. A record
-  // type that could not be queried at all is, because the difference decides
-  // whether a missing record means missing or means unknown.
-  return { zone, lookupErrors: errors.filter((e) => !/ENOTFOUND|ENODATA/.test(e)) };
+  return { zone, lookupErrors: keepRealErrors(errors) };
 }
 
 function certificateOf(host) {
@@ -182,14 +188,17 @@ async function followRedirects(startUrl, limit = 6) {
   return { chain, final: current, status: null, headers: {}, truncated: true };
 }
 
-async function main() {
-  const [domain, outDir = '.'] = process.argv.slice(2);
-  if (!domain) {
-    process.stderr.write('Usage: node probe/collect.mjs <domain> [output directory] [--selectors a,b]\n');
+async function main(argv) {
+  const parsed = parseProbeArgs(argv);
+  if (!parsed.ok) {
+    process.stderr.write(`${parsed.message}\n\n${PROBE_USAGE}`);
     return 2;
   }
-  const selectorArg = process.argv.find((a) => a.startsWith('--selectors='));
-  const selectors = selectorArg ? selectorArg.split('=')[1].split(',').filter(Boolean) : [];
+  if (parsed.options.help) {
+    process.stdout.write(PROBE_USAGE);
+    return 0;
+  }
+  const { domain, outDir, selectors } = parsed.options;
 
   mkdirSync(outDir, { recursive: true });
 
@@ -201,15 +210,12 @@ async function main() {
   const httpChain = await attempt('http redirect chain', () => followRedirects(`http://${domain}/`));
   const httpsHead = await attempt('https head', () => head(canonical));
 
-  const observed = {
+  const observed = assembleObserved({
     now: new Date().toISOString(),
-    httpReachable: httpChain.ok,
-    httpsReachable: httpsHead.ok,
-    certificate: cert.ok ? cert.value : null,
-    redirectChain: httpChain.ok ? httpChain.value.chain : [],
-    headers: httpsHead.ok ? httpsHead.value.headers : {},
-    collectionErrors: [cert, httpChain, httpsHead].filter((r) => !r.ok).map((r) => r.error)
-  };
+    certificate: cert,
+    httpChain,
+    httpsHead
+  });
   writeFileSync(join(outDir, 'observed.json'), `${JSON.stringify(observed, null, 2)}\n`);
 
   process.stdout.write(`Wrote zone.json and observed.json for ${domain} into ${outDir}\n`);
@@ -223,6 +229,25 @@ async function main() {
   return 0;
 }
 
-main().then((code) => {
-  process.exitCode = code;
-});
+const invokedDirectly = (() => {
+  if (!process.argv[1]) return false;
+  try {
+    return pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url;
+  } catch {
+    return false;
+  }
+})();
+
+if (invokedDirectly) {
+  main(process.argv.slice(2)).then(
+    (code) => {
+      process.exitCode = code;
+    },
+    (error) => {
+      // Without this the only unguarded throws in the script, the two writes and
+      // the mkdir, surfaced as an unhandled rejection and a stack trace.
+      process.stderr.write(`${error.message}\n`);
+      process.exitCode = 2;
+    }
+  );
+}
