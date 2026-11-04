@@ -7,6 +7,18 @@ import { raise } from '../catalog.mjs';
 
 const URL_ATTRIBUTES = ['src', 'href', 'action', 'poster', 'data-src', 'data-bg'];
 
+// A loopback origin is treated as potentially trustworthy by browsers, so it is
+// never blocked or upgraded as mixed content. Reporting it as a subresource over
+// http attaches the wrong next action: the fix is to delete the reference, not
+// to obtain a certificate for localhost. It is still a defect, because the
+// reference resolves to the visitor's own machine, so it gets a reason of its
+// own rather than being folded into the mixed content findings.
+const LOOPBACK = /^(?:https?:)?\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1\])(?::\d+)?(?:[/?#]|$)/i;
+
+export function isLoopback(value) {
+  return LOOPBACK.test(String(value ?? '').trim());
+}
+
 function lineOf(text, index) {
   return text.slice(0, index).split('\n').length;
 }
@@ -39,6 +51,10 @@ export function scanText(text, { path, oldDomain = null, kind = 'html' }) {
     eachAttribute(text, ({ name, value, index }) => {
       const isUrlAttribute = URL_ATTRIBUTES.includes(name);
 
+      if (isUrlAttribute && isLoopback(value)) {
+        once('MIX008', index, `${name}="${value}" resolves to the visitor's own machine`);
+        return;
+      }
       if (name === 'action' && value.startsWith('http://')) {
         once('MIX007', index, `form action ${value}`);
         return;
@@ -48,8 +64,13 @@ export function scanText(text, { path, oldDomain = null, kind = 'html' }) {
           .split(',')
           .map((c) => c.trim().split(/\s+/)[0])
           .filter((c) => c.startsWith('http://'));
-        if (httpCandidates.length > 0) {
-          once('MIX005', index, `${httpCandidates.length} candidate(s) over http: ${httpCandidates[0]}`);
+        const loopback = httpCandidates.filter((c) => isLoopback(c));
+        const remote = httpCandidates.filter((c) => !isLoopback(c));
+        if (loopback.length > 0) {
+          once('MIX008', index, `srcset candidate ${loopback[0]} resolves to the visitor's own machine`);
+        }
+        if (remote.length > 0) {
+          once('MIX005', index, `${remote.length} candidate(s) over http: ${remote[0]}`);
         }
         if (oldDomain && value.includes(oldDomain)) once('MIX003', index, `srcset references ${oldDomain}`);
         return;
@@ -83,7 +104,8 @@ export function scanText(text, { path, oldDomain = null, kind = 'html' }) {
       const urls = /url\(\s*['"]?(http:\/\/[^'")\s]+)/gi;
       let u;
       while ((u = urls.exec(block[1])) !== null) {
-        once('MIX004', offset + u.index, `url(${u[1]})`);
+        if (isLoopback(u[1])) once('MIX008', offset + u.index, `url(${u[1]}) resolves to the visitor's own machine`);
+        else once('MIX004', offset + u.index, `url(${u[1]})`);
       }
     }
   }
@@ -92,11 +114,13 @@ export function scanText(text, { path, oldDomain = null, kind = 'html' }) {
     const urls = /url\(\s*['"]?(http:\/\/[^'")\s]+)/gi;
     let match;
     while ((match = urls.exec(text)) !== null) {
-      once('MIX004', match.index, `url(${match[1]})`);
+      if (isLoopback(match[1])) once('MIX008', match.index, `url(${match[1]}) resolves to the visitor's own machine`);
+      else once('MIX004', match.index, `url(${match[1]})`);
     }
     const relative = /url\(\s*['"]?(\/\/[^'")\s]+)/gi;
     while ((match = relative.exec(text)) !== null) {
-      once('MIX002', match.index, `url(${match[1]})`);
+      if (isLoopback(match[1])) once('MIX008', match.index, `url(${match[1]}) resolves to the visitor's own machine`);
+      else once('MIX002', match.index, `url(${match[1]})`);
     }
     if (oldDomain) {
       const old = new RegExp(oldDomain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');

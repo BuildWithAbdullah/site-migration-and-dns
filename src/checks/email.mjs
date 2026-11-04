@@ -87,7 +87,12 @@ export function countSpfLookups(parsed, includeCosts = {}) {
 function spfAuthorises(parsed, host) {
   const needle = String(host ?? '').trim().toLowerCase();
   if (needle === '') return false;
-  return parsed.terms.some((t) => (t.value ?? '').toLowerCase() === needle);
+  if (parsed.terms.some((t) => (t.value ?? '').toLowerCase() === needle)) return true;
+  // A record whose whole policy is delegated with redirect= authorises
+  // everything that record authorises. Reading only the mechanisms meant
+  // `v=spf1 redirect=_spf.provider.example` was reported as not authorising
+  // the provider it hands the entire decision to.
+  return String(parsed.modifiers.redirect ?? '').trim().toLowerCase() === needle;
 }
 
 // ------------------------------------------------------------------ tag lists
@@ -256,13 +261,22 @@ export function checkEmail(zone, profile) {
 
   if (spfRecords.length === 0) {
     findings.push(raise('SPF001', { where: domain, detail: 'no TXT record starting v=spf1' }));
+  } else if (spfRecords.length > 1) {
+    // Two SPF records is a permanent error: a receiver applies neither, so
+    // nothing can be said about what the policy allows. Judging the first
+    // record anyway made the finding set depend on the order the TXT records
+    // came back in, which is an order DNS does not promise. The same input
+    // reported SPF005 or did not, depending on which record happened to be
+    // first. One blocker, and no guesses derived from a record nobody reads.
+    findings.push(
+      raise('SPF002', {
+        where: domain,
+        detail:
+          `${spfRecords.length} SPF records published at the apex, so the remaining SPF checks ` +
+          'were not run: a receiver applies neither record'
+      })
+    );
   } else {
-    if (spfRecords.length > 1) {
-      findings.push(
-        raise('SPF002', { where: domain, detail: `${spfRecords.length} SPF records published at the apex` })
-      );
-    }
-
     const parsed = parseSpf(spfRecords[0]);
     const lookups = countSpfLookups(parsed, mail.includeLookupCosts ?? {});
     if (lookups.total > 10) {
@@ -311,8 +325,17 @@ export function checkEmail(zone, profile) {
       continue;
     }
     const dkim = parseDkim(records[0]);
-    if (dkim.publicKey !== null && dkim.publicKey.trim() === '') {
-      findings.push(raise('DKIM004', { where: `${name}.${domain}`, detail: 'p= is empty, so the key is revoked' }));
+    if (dkim.publicKey === null || dkim.publicKey.trim() === '') {
+      // An absent p= tag used to pass every check: it is not empty, so the
+      // revoked-key branch did not fire, and there is no key to measure, so the
+      // short-key branch did not either. A selector published without a public
+      // key signs nothing, which is the same outcome as revoking it.
+      findings.push(
+        raise('DKIM004', {
+          where: `${name}.${domain}`,
+          detail: dkim.publicKey === null ? 'record has no p= tag' : 'p= is empty, so the key is revoked'
+        })
+      );
     } else if (dkim.keyBits !== null && dkim.keyBits < 1024) {
       findings.push(
         raise('DKIM002', { where: `${name}.${domain}`, detail: `RSA modulus is ${dkim.keyBits} bits` })
@@ -327,12 +350,20 @@ export function checkEmail(zone, profile) {
   const dmarcTxt = txtAt(zone, '_dmarc').filter((t) => /^v=DMARC1/i.test(t.trim()));
   if (dmarcTxt.length === 0) {
     findings.push(raise('DMARC001', { where: `_dmarc.${domain}`, detail: 'no TXT record starting v=DMARC1' }));
+  } else if (dmarcTxt.length > 1) {
+    // The same order dependence as SPF above, and the same answer. With more
+    // than one DMARC record at _dmarc the domain has no applicable policy, so
+    // the policy of whichever record sorted first is not a fact about the
+    // domain.
+    findings.push(
+      raise('DMARC006', {
+        where: `_dmarc.${domain}`,
+        detail:
+          `${dmarcTxt.length} DMARC records published, so the remaining DMARC checks were not run: ` +
+          'the domain has no applicable policy while both exist'
+      })
+    );
   } else {
-    if (dmarcTxt.length > 1) {
-      findings.push(
-        raise('DMARC006', { where: `_dmarc.${domain}`, detail: `${dmarcTxt.length} DMARC records published` })
-      );
-    }
     const dmarc = parseDmarc(dmarcTxt[0]);
 
     if (dmarc.policy === 'none') {
@@ -341,7 +372,18 @@ export function checkEmail(zone, profile) {
     if (dmarc.rua.length === 0) {
       findings.push(raise('DMARC003', { where: `_dmarc.${domain}`, detail: 'no rua tag' }));
     }
-    if (dmarc.pct !== null && dmarc.pct < 100) {
+    if (dmarc.pct === 0) {
+      // pct=0 is not a smaller version of pct=50. It applies the policy to no
+      // mail at all, so a record reading p=reject; pct=0 enforces exactly as
+      // much as p=none while looking strict in every summary that prints the
+      // policy. Reporting it as "below 100" at severity low buried that.
+      findings.push(
+        raise('DMARC008', {
+          where: `_dmarc.${domain}`,
+          detail: `pct=0 with p=${dmarc.policy ?? 'absent'}, so the policy is applied to no mail`
+        })
+      );
+    } else if (dmarc.pct !== null && dmarc.pct < 100) {
       findings.push(raise('DMARC004', { where: `_dmarc.${domain}`, detail: `pct=${dmarc.pct}` }));
     }
     if (

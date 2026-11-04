@@ -78,6 +78,7 @@ export function checkRedirects(input, profile) {
     }
   }
 
+  const reportedLoops = new Set();
   for (const rule of map) {
     // These two are properties of the rule as written, so they are raised
     // before the chain is followed. Raising them afterwards meant a rule in a
@@ -93,7 +94,16 @@ export function checkRedirects(input, profile) {
 
     const chain = followChain(map, rule.from);
     if (chain.loop) {
-      findings.push(raise('RED003', { where: rule.from, detail: `loops through ${chain.visited.join(' -> ')}` }));
+      // One loop is one defect. Walking the map from every entry point reaches
+      // the same cycle once per member, so a three node loop was reported three
+      // times and the report said three findings for one problem. The cycle is
+      // keyed by its members, which is what makes two entry points into the
+      // same loop the same finding.
+      const key = Array.from(new Set(chain.visited)).sort().join('|');
+      if (!reportedLoops.has(key)) {
+        reportedLoops.add(key);
+        findings.push(raise('RED003', { where: rule.from, detail: `loops through ${chain.visited.join(' -> ')}` }));
+      }
       continue;
     }
     if (chain.hops > 1) {

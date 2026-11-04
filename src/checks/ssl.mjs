@@ -96,7 +96,26 @@ export function checkSsl(observed, profile) {
   if (!hsts && observed.httpsReachable !== false) {
     findings.push(raise('SSL008', { where: domain, detail: 'no Strict-Transport-Security header' }));
   }
-  if (hsts) {
+
+  // A header can be present and enforce nothing, and both forms of that used to
+  // be reported as fine: max-age is the only directive that does any work, so a
+  // header without it is ignored outright, and max-age=0 is the instruction to
+  // forget the policy. The second half matters as much as the first: with no
+  // effective max-age, includeSubDomains and preload are inert, so a subdomain
+  // coverage verdict derived from them would be a judgement about a header no
+  // browser acts on.
+  const enforcing = hsts !== null && hsts.maxAge !== null && hsts.maxAge > 0;
+  if (hsts !== null && hsts.maxAge === null) {
+    findings.push(
+      raise('SSL011', { where: domain, detail: `header is "${hstsRaw}", which has no max-age directive` })
+    );
+  } else if (hsts !== null && hsts.maxAge === 0) {
+    findings.push(
+      raise('SSL012', { where: domain, detail: 'max-age=0 tells browsers to stop requiring https for this name' })
+    );
+  }
+
+  if (enforcing) {
     if (hsts.preload && (hsts.maxAge ?? 0) < 31536000) {
       findings.push(
         raise('SSL009', { where: domain, detail: `preload requested with max-age=${hsts.maxAge ?? 'absent'}` })
