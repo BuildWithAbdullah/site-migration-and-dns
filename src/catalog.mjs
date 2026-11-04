@@ -116,7 +116,7 @@ const FINDINGS = [
   {
     id: 'DNS010',
     area: 'dns',
-    title: 'Apex has address records at more than one host',
+    title: 'Apex answers at both the old and the new host',
     severity: 'medium',
     nextAction:
       'Remove the addresses that are not meant to serve the site. Two live addresses means a share of visitors reach the old host and a share reach the new one, with no pattern the client can reproduce.',
@@ -290,7 +290,7 @@ const FINDINGS = [
   {
     id: 'DKIM004',
     area: 'email',
-    title: 'DKIM record has an empty public key',
+    title: 'DKIM record publishes no usable public key',
     severity: 'high',
     nextAction:
       'Restore the public key, or remove the selector record. An empty p= means the key is revoked, and every signature with that selector fails.',
@@ -366,6 +366,16 @@ const FINDINGS = [
       'Decide whether sp=none is deliberate. If it is not, remove it and let the domain policy apply to subdomains, which is the default.',
     doesNotProve:
       'That it is wrong. A subdomain used by a bulk sender that cannot align yet is a normal reason to hold it at none.'
+  },
+  {
+    id: 'DMARC008',
+    area: 'email',
+    title: 'DMARC pct is zero, so the policy is applied to no mail',
+    severity: 'high',
+    nextAction:
+      'Remove the pct tag, or raise it. While it reads zero the published policy has no effect, so set it to the value you actually want enforced and watch the reports before raising it further.',
+    doesNotProve:
+      'That the policy was set to zero by mistake. It is the normal way to stage a rollout. What it does prove is that the policy printed in every summary is not the policy being applied.'
   },
 
   // ---------------------------------------------------------------- ssl
@@ -468,6 +478,26 @@ const FINDINGS = [
       'Serve every subdomain over https first, or drop includeSubDomains. The header applies to names nobody checked, and staging, mail and admin subdomains are the ones that break.',
     doesNotProve:
       'That those subdomains are currently unreachable. They break for visitors who have already seen the header, which is not the person running the check.'
+  },
+  {
+    id: 'SSL011',
+    area: 'ssl',
+    title: 'HSTS header has no max-age directive',
+    severity: 'high',
+    nextAction:
+      'Add max-age to the header. Without it the header is malformed and discarded, so the name has no HSTS policy at all while the response looks as though it does.',
+    doesNotProve:
+      'That https is broken. Everything about the connection can be correct. What is missing is the instruction not to try the insecure one next time.'
+  },
+  {
+    id: 'SSL012',
+    area: 'ssl',
+    title: 'HSTS max-age is zero',
+    severity: 'high',
+    nextAction:
+      'Set max-age to the value you intend to enforce. Zero is the documented way to withdraw an HSTS policy, so leaving it there after a move to https undoes the protection on every browser that already had the policy stored.',
+    doesNotProve:
+      'That it was left by accident. Zero is also what you publish deliberately while unwinding a policy, which is why it is reported rather than corrected silently.'
   },
 
   // ---------------------------------------------------------------- serialized
@@ -674,6 +704,16 @@ const FINDINGS = [
       'Change the action to https immediately. This form sends whatever the visitor typed in clear text, and a redirect on the receiving end does not undo a request that has already been sent.',
     doesNotProve:
       'That data has been intercepted. It proves nothing prevents it.'
+  },
+  {
+    id: 'MIX008',
+    area: 'mixed',
+    title: 'Reference to a loopback address',
+    severity: 'high',
+    nextAction:
+      'Delete the reference or point it at the real host. A loopback URL resolves to the machine of whoever opens the page, so it fails for every visitor and succeeds for the developer who wrote it.',
+    doesNotProve:
+      'That it is mixed content. Browsers treat a loopback origin as trustworthy, so it is neither blocked nor upgraded, which is why it survives a mixed content audit and a test on the machine it was written on.'
   },
 
   // ---------------------------------------------------------------- indexing
