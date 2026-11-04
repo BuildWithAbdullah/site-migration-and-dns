@@ -15,12 +15,20 @@ between what a tool checked and what everybody assumed it checked, so every
 finding here carries the inference it does not support, and a check with no input
 is reported as skipped rather than passing quietly.
 
-- **74 catalogued findings** across **8 areas**: DNS zone shape, TTL staging,
+- **78 catalogued findings** across **8 areas**: DNS zone shape, TTL staging,
   email authentication, certificates and transport, PHP serialized data,
-  redirect map coverage, mixed content, and indexing.
-- **10 failing and corrected example pairs**, each one an overlay on a shared
-  clean baseline, so a pair reads as a diff rather than two directories.
-- **213 tests** and a repository verifier, green on Node 18, 20 and 22.
+  redirect map coverage, mixed content, and indexing. One entry per reason, not
+  one per check, and each one declares the severity it is raised at.
+- **13 failing and corrected example pairs**, each one an overlay on a shared
+  clean baseline, so a pair reads as a diff rather than two directories. The
+  pairs reach 48 of them, which is why there are also
+  **78 single reason fixtures**: one per catalogued reason, each declaring the
+  complete set of findings its input produces, compared both ways.
+- **10 declared limits**, every one asserted in both directions: the finding the
+  limit says is out of reach has to be absent for an input that would need it,
+  and present for the nearest input this tool does judge.
+- **319 tests** and **67 repository assertions**, green on Node 20.0.0, 22.23.4
+  and 24.11.1.
 - No dependencies. No API key. Nothing to sign up for.
 
 ## The claim this repository is built around
@@ -30,13 +38,24 @@ is reported as skipped rather than passing quietly.
 Every check is a function from data to findings. Nothing in `src/` opens a
 socket, resolves a name or makes a request, which is why every branch of every
 check is reachable from a test, and why the same input always gives the same
-answer. `tools/verify.mjs` reads the source of every file under `src/` and
-`bin/` and fails the build if a network module, a `fetch` or a filesystem write
-appears in it.
+answer. `tools/verify.mjs` reads the source of every shipped
+module outside `probe/` and fails the build if a network module, a `fetch` or a
+filesystem write appears in it.
 
 `probe/collect.mjs` is the part that does touch the network, and it is the one
 part CI does not run, because its output depends on somebody else's nameserver.
 It collects; it does not judge.
+
+That line is drawn in the right place but it used to be drawn too far out.
+Parsing a command line and deciding what a partial collection means are not
+network operations, and while they sat in the collector they were covered by
+nothing, so `--selectors sel1` in the spelling the usage line documented wrote
+the output into a directory named after the flag and collected no DKIM records
+at all. Those decisions are in `src/probe-plan.mjs` now, with tests on them. The
+same reasoning took `migrate-check` apart: every decision it makes lives in
+`src/cli.mjs`, where a test drives it with stub streams, and
+`tools/entry-thin.mjs` fails the build if any of it moves back into the file
+npm installs as the command.
 
 ## Install and run
 
@@ -50,7 +69,7 @@ Against a real migration, in two steps:
 
 ```
 # 1. Collect. This is the only step that goes near the network.
-node probe/collect.mjs example.org ./my-migration --selectors=selector1
+node probe/collect.mjs example.org ./my-migration --selectors selector1,selector2
 
 # 2. Describe the migration, then judge it.
 #    See docs/profile.md for the fields.
@@ -140,8 +159,8 @@ being retired.
 
 ## Examples
 
-`examples/` holds a clean baseline and ten pairs. Each pair contributes only the
-files that differ from the baseline, so the correction is readable as a diff.
+`examples/` holds a clean baseline and thirteen pairs. Each pair contributes only
+the files that differ from the baseline, so the correction is readable as a diff.
 
 | Pair | Demonstrates |
 |---|---|
@@ -155,43 +174,89 @@ files that differ from the baseline, so the correction is readable as a diff.
 | `08-mixed-content` | Mixed content and old domain references |
 | `09-staging-config-in-production` | The staging configuration shipped live |
 | `10-mail-does-not-survive-the-move` | A rebuilt zone with no mail records |
+| `11-hsts-that-enforces-nothing` | An HSTS header with no `max-age`, so browsers discard it |
+| `12-development-urls-in-production` | Loopback URLs, which no mixed content audit reports |
+| `13-dmarc-that-enforces-nothing` | `p=reject` with `pct=0`, which applies to no mail |
 
-Two things are asserted about every pair, and they are the reason the examples
-are evidence rather than illustration. The failing variant has to raise exactly
-the findings its own README claims, no more and no fewer. And the corrected
-variant has to raise nothing at all when run against **every** check, not only
-the one its pair is about, which is what stops a corrected page from quietly
-carrying somebody else's defect.
+Each pair is checked three ways against the same claim, which is the reason the
+examples are evidence rather than illustration.
+
+1. The failing side has to raise exactly the manifest in `tools/pairs.mjs`, as
+   finding id to severity, compared with `deepEqual` in both directions. No more
+   and no fewer.
+2. That manifest has to be exactly what the pair's own README claims in prose,
+   because the prose is what a reader believes, and a document is not held to a
+   lower standard than a data structure.
+3. The real binary is run over both sides of every pair at every threshold, and
+   the exit code it returns is **derived** from the manifest and the severity
+   order rather than written down. Change a severity and the expectation changes
+   with it, in the same move.
+
+And the corrected side has to raise nothing at all when run against **every**
+check, not only the one its pair is about, which is what stops a corrected page
+from quietly carrying somebody else's defect.
 
 ## Verifying
 
 Everything below runs with no network access and no configuration.
 
 ```
-npm test          # 213 tests
-npm run verify    # the repository verifier
+npm test                  # 319 tests
+npm run verify            # the repository verifier
+npm run check:exit-codes  # the real binary, every pair, every threshold
+npm run check:entries     # the entry points are wiring and nothing else
 ```
 
-`npm test` covers the parsers and the checks directly, then runs all ten example
-pairs through the whole pipeline and asserts the two properties above. One test
-is worth calling out: `test/coverage.mjs` asserts that every one of the 74
-catalogued findings can actually be raised by some input. A finding nothing can
-produce is documentation pretending to be a check, and this repository fails to
-build if one appears.
+`npm test` covers the parsers and the checks directly, then drives every
+catalogued reason through a fixture of its own and runs all thirteen example
+pairs through the whole pipeline.
+
+Two groups of tests are worth calling out, because they are what turns the
+catalogue from a document into a set of checks.
+
+`test/coverage.mjs` asserts that every fixture produces **exactly** the findings
+it declares. The weaker version of this test, which asserted only that the union
+of a handful of scenarios touched every catalogued id, was a reachability proof
+rather than a correctness one: a scenario raising one finding too many looked
+exactly like a scenario raising the right ones, so a false positive could sit
+inside it indefinitely. Comparing complete sets is what found that a loopback
+URL was being reported as mixed content, with advice that cannot be followed.
+
+`test/severity.mjs` asserts the severity table in both directions. Nothing
+raised may carry a severity its catalogue entry did not declare, and, the
+direction that does the work, **every severity the catalogue declares has to
+have been produced by something**. An entry whose severity has never been
+observed is an entry the derived exit codes are computed from and nothing has
+checked.
 
 `npm run verify` checks the repository against itself:
 
-- the counts quoted in this README match the catalogue, the example directory
-  and the number of tests that actually ran
+- every count quoted in this README, matched as a whole line, so a number that
+  has wrapped onto two lines or been stated twice fails as loudly as a wrong one
+- the assertion total itself, which is a fact about the repository rather than a
+  count of its files: every corpus check makes a fixed number of assertions and
+  names its offenders in the message, and CI adds one unrelated document and
+  requires the total not to move
+- the test count, taken from a custom `node:test` reporter rather than from
+  reporter text, because the text reporter prints `# tests 319` on Node 20 and
+  22 and `info tests 319` on Node 24, so a pattern over it stops counting on one
+  of the versions this package supports
 - every file in `test/` is named in the `test` script, because `node --test` did
   not accept glob patterns before Node 21 and a test file that silently never
   runs is worse than no test
-- nothing under `src/` or `bin/` imports a network module, calls `fetch` or
-  writes to the filesystem, which is the claim at the top of this file
-- every example has a README, a `fail` and a `pass`
+- nothing outside `probe/` imports a network module, calls `fetch` or writes to
+  the filesystem, which is the claim at the top of this file
+- nothing the package ships imports from a directory the package does not ship,
+  which works in the repository and fails in every installed copy
+- the engines floor is an exact version and CI runs that exact version, because
+  `actions/setup-node` resolves a bare major to the newest release of that line,
+  so a job named `20` never runs the floor the package claims to support
+- every example has a README, a `fail` and a `pass`, and `docs/limits.md` and
+  the asserted limits are the same set
 - there are no em dashes or en dashes anywhere in the repository
 
-CI runs both on Node 18, 20 and 22.
+CI runs the suite on Node 20.0.0, 22.23.4 and 24.11.1, and has a job of its own
+that refuses to pass unless the runtime really is the declared floor.
 
 ## What this does not do
 
@@ -203,7 +268,9 @@ Read `docs/limits.md` before relying on any of it. The short version:
   case derived from TTLs, which is the right number for a rollback plan and the
   wrong number for reassuring somebody that the change has landed.
 - It reads the source, not the rendered page. A defect introduced by JavaScript
-  at runtime, or by a plugin on output, is invisible to it.
+  at runtime, or by a plugin on output, is invisible to it, and the bluntness
+  cuts both ways: a reference inside an HTML comment is reported even though the
+  browser never fetches it.
 - It never writes to your database, your zone or your site. The serialization
   aware replacement is a function you can call; nothing calls it for you.
 - The checks that can only be done after the switch are listed in
