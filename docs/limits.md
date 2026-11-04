@@ -140,3 +140,35 @@ hosts are serving and both answers are correct. During that window:
 
 Assume the window is as wide as the arithmetic says, not as wide as your own
 resolver suggests.
+
+## A key is only measured when its algorithm is one this understands
+
+The DKIM key length check walks the DER of an RSA public key and reports the bit
+length of the modulus. A thousand and twenty four bits is an RSA number, and an
+ed25519 key has no modulus to measure, so an ed25519 selector is not reported as
+short. It is not reported as fine either. Nothing is said about its length,
+because the only alternative would be a number derived from how long the base64
+is, and a specific wrong number is worse than silence.
+
+The same applies to any key type added later. If `k=` names something this does
+not parse, the length finding is skipped rather than guessed. What is still
+checked for every selector, whatever the algorithm, is whether the record exists,
+whether it publishes a usable public key at all, and whether it is in testing
+mode.
+
+## A tag value that cannot be read is skipped, not reported
+
+The DKIM and DMARC parsers are total. A record in the wild is malformed often
+enough that throwing on one would make the tool useless, so a value that cannot
+be read becomes null and the checks that depend on it are skipped.
+
+The cost of that is real and worth stating. `pct=abc` is treated exactly as
+though no percentage had been published, so a record carrying a malformed
+percentage passes the percentage checks in silence. Likewise a `p=` value that is
+not one of the three policies is read as a policy of nothing rather than
+reported as nonsense.
+
+The one value inside this that is not skipped is zero. `pct=0` parses, and it is
+reported as its own reason rather than as a percentage merely below one hundred,
+because it is the value at which a published policy stops being applied to any
+mail at all while still reading as `reject` in every summary.
